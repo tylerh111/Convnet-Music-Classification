@@ -58,6 +58,9 @@ MODEL = sys.argv[1]
 if MODEL not in MODELS.keys():
     print("Bad model argument:", MODEL)
     sys.exit(-1)
+
+#Either need to >>>>manually split training set into training and validation<<<<
+#  OR need to make txt files of the image names (this will be the validation set)
 VALID_SPLIT = int(sys.argv[2])
 if VALID_SPLIT not in range(3):
     print("Bad model argument:", MODEL)
@@ -101,6 +104,8 @@ for subdir, dirs, files in os.walk(PATH + DIR_SEP + "input"):
         list_paths.append(filepath)
 
 
+
+######  CHANGE THESE TO ROCK & CLASSICAL
 list_classes = ['Sony-NEX-7',
  'Motorola-X',
  'HTC-1-M7',
@@ -129,6 +134,10 @@ def label_transform(label):
     return dict_classes[label]
 
 
+
+ ##############################################################################################
+
+
 #Take a potentially random patch of image
 preprocess_input = MODELS[MODEL]['preprocessor']
 def read_and_crop(filepath, left=None, top=None, random = True, margin = 0, width = 112, height = 112):
@@ -146,6 +155,15 @@ def read_and_crop(filepath, left=None, top=None, random = True, margin = 0, widt
             top = (pil_im.size[1] - height) // 2
     new_array = np.array(pil_im.crop((left,top,left+width,top+height)))
     return preprocess_input(new_array/1.0)
+
+
+ ##############################################################################################
+
+
+
+
+
+
 
 # Grab file list and labels
 list_train = [filepath for filepath in list_paths if DIR_SEP + "train" + DIR_SEP in filepath]
@@ -173,12 +191,23 @@ partition = {'train': [train_ex1,train_ex2,train_ex2], 'validation': [valid_ex]}
 
 print("done assembling training and validation sets")
 
+
+
+
+
+
+##########################################################################################################################
+
+
 # ## Custom Dataflow Generator
 #
 #
 # Code adapted from blog at: https://stanford.edu/~shervine/blog/keras-how-to-generate-data-on-the-fly.html
 
 
+##################################################
+## USE KERAS DATAGENERATOR (ImageDataGenerator) ##
+##################################################
 from random import randint
 
 class DataGenerator(object):
@@ -224,6 +253,7 @@ class DataGenerator(object):
         return X, sparsify(y)
 
 
+     ## dont need this (used by data generator)
 def sparsify(y):
     # Returns labels in binary NumPy array'
     n_classes = 10
@@ -232,6 +262,11 @@ def sparsify(y):
 
 
 
+
+
+
+
+#################################################################################################################################################
 
 # ## Train the CNN
 #
@@ -276,9 +311,9 @@ def get_model():
         sys.exit(-1);
 
     x = input_image
-    x = base_model(x)
+    x = base_model(x) #resent or densenet or whatever
     x = Reshape((-1,))(x)
-    #x = Dropout(rate=?)(x)
+    #x = Dropout(rate=?)(x)   ## should use this
     x = Dense(512, activation='relu', name='fc1')(x)
     x = Dropout(0.3,         name='dropout_fc1')(x)
     x = Dense(128, activation='relu', name='fc2')(x)
@@ -300,7 +335,15 @@ def get_model():
     return my_model
 
 
-# In[ ]:
+
+
+
+
+
+
+
+########################################################################################################
+
 
 print("Getting model")
 model = get_model()
@@ -312,6 +355,8 @@ file_path=SCRIPT_NAME + "/weights.{epoch:04d}.hdf5"
 
 callbacks_list = [ ModelCheckpoint(file_path, monitor='val_acc', verbose=1) ]
 
+
+# Might need to change this to fit keras data generator
 # Parameters
 paramsTrain = {'dim_x': MODELS[MODEL]['size'],
           'dim_y': MODELS[MODEL]['size'],
@@ -334,6 +379,9 @@ paramsValid = {'dim_x': MODELS[MODEL]['size'],
 print("starting training")
 if STARTING_MODEL != "":
     model.load_weights(STARTING_MODEL)
+
+
+## Need to change to match ImageDataGenerator from keras
 # Generators
 training_generator = DataGenerator(**paramsTrain).generate(partition['train'])
 validation_generator = DataGenerator(**paramsValid).generate(partition['validation'])
