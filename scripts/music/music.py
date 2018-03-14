@@ -1,6 +1,6 @@
-#########################################################
-## python script.py <model> <version> [previous model] ##
-#########################################################
+#################################################
+## python script.py <version> [previous model] ##
+#################################################
 
 # CNN with a custom dataflow
 #
@@ -25,7 +25,7 @@ from keras.preprocessing.image import ImageDataGenerator,load_img,img_to_array
 from keras import activations
 import sys
 
-if not (3 <= len(sys.argv) <= 4):
+if not (2 <= len(sys.argv) <= 3):
 	print("Usage: python",sys.argv[0],"MODEL VERSION [STARTING_MODEL]")
 	sys.exit(-1)
 
@@ -59,10 +59,10 @@ MODELS = {
 		'preprocessor':resnet50.preprocess_input,
 	},
 }
-MODEL = sys.argv[1]
-if MODEL not in MODELS.keys():
-	print("Bad model argument:",MODEL)
-	sys.exit(-1)
+#MODEL = sys.argv[1]
+#if MODEL not in MODELS.keys():
+#	print("Bad model argument:",MODEL)
+#	sys.exit(-1)
 
 #Either need to >>>>manually split training set into training and validation<<<<
 #  OR need to make txt files of the image names (this will be the validation set)
@@ -72,23 +72,24 @@ if MODEL not in MODELS.keys():
 #    sys.exit(-1)
 
 
-VERSION = sys.argv[2]
+VERSION = sys.argv[1]
 
-SCRIPT_NAME = "spectrogram_" + MODEL + "_v" + VERSION
+SCRIPT_NAME = "music_v" + VERSION
 if os.path.exists(SCRIPT_NAME + "/"):
 	print("Directory for saved models already exists:",SCRIPT_NAME)
 	sys.exit(-1)
 
 STARTING_MODEL = ""
-if len(sys.argv) == 4:
+if len(sys.argv) == 2:
 	STARTING_MODEL = sys.argv[3]
 
-PATH = "/media/tdh5188/easystore/convnet_input" # path to training files
+#PATH = "your/path/to/directory_with_input/
+#PATH = "/media/tdh5188/easystore/convnet_input" # path to training files
 #DIR_SEP = "/" # "/" for unix, "\\" for windows
 SEEDS = [randint(0,10000),randint(0,10000),randint(0,10000)]
 
 print(SCRIPT_NAME)
-print("Model:",MODEL)
+#print("Model:",MODEL)
 #print("Validation split:", VALID_SPLIT)
 print("Starting Model:",STARTING_MODEL)
 print("Seeds:",SEEDS)
@@ -202,18 +203,21 @@ print("Assembled raining and validation sets complete")
 
 
 ### test prints of file structure
-# print("partition {")
-# for mset in partition:
-#         print("\t",mset,"[")
-#         for ndx in range(0, len(partition[mset])):
-#                 label = list_classes[ndx]
-#                 print("\t\t",label,"[")
-#                 for filepath in partition[mset][ndx]:
-#                         print("\t\t\t",filepath)
-#                 print("\t\t]")
-#         print("\t]")
-# print("}")
+def pretty_print_path():
+    print("partition {")
+    for mset in partition:
+        print("\t",mset,"[")
+        for ndx in range(0, len(partition[mset])):
+            label = list_classes[ndx]
+            print("\t\t",label,"[")
+            for filepath in partition[mset][ndx]:
+                print("\t\t\t",filepath)
+            print("\t\t]")
+        print("\t]")
+    print("}")
 
+
+#pretty_print_path()
 
 '''
 # list_train = [filepath for filepath in list_paths if "train/" in filepath]
@@ -246,7 +250,7 @@ print("Assembled raining and validation sets complete")
 
 
 ##########################################################################################################################
-'''
+
 
 ## Custom Dataflow Generator
 
@@ -292,12 +296,17 @@ class DataGenerator(object):
 		y = np.empty((self.batch_size),dtype = int)
 
 		for i in range(self.batch_size):
-			sector = randint(0,len(list_IDs) - 1)
-			label = randint(0,self.nclass - 1)
+			#sector = randint(0,len(list_IDs) - 1)
+                        #choose random label from file_path
+                        label = randint(0,self.nclass - 1)
+                        #choose random index in the following airray : partition[training][label]
 			pic_ndx = randint(0,len(list_IDs[sector][label]) - 1)
+                        #read_and_crop gets image and then copies everything (that the ':' in the array) into a sample index ('i')
 			X[i,:,:,:] = read_and_crop(list_IDs[sector][label][pic_ndx],
-									   margin = self.margin,random = self.random_location,
-									   height = self.dim_y,width = self.dim_x)
+                                                   margin = self.margin,
+                                                   random = self.random_location,
+						   height = self.dim_y,
+                                                   width  = self.dim_x)
 			y[i] = label
 
 		return X,sparsify(y)
@@ -311,7 +320,7 @@ def sparsify(y):
 	return np.array([[1 if y[i] == j else 0 for j in range(n_classes)]
 					 for i in range(y.shape[0])])
 
-'''
+
 #################################################################################################################################################
 
 Gotta do this next
