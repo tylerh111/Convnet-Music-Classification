@@ -108,7 +108,6 @@ partition = {'train': train_ex, 'validation': valid_ex}
 # Code adapted from blog at: https://stanford.edu/~shervine/blog/keras-how-to-generate-data-on-the-fly.html
 
 
-
 from random import randint
 
 class DataGenerator(object):
