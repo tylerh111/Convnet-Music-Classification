@@ -4,18 +4,18 @@
 
 # CNN with a custom dataflow
 #
-# Author: Jeremy
+# Author: tdr5143
 #
 # Each epoch the CNN training takes a random patch from training and validation images to minimize overfitting
-# History: used CNN_smallpics_v1.py with Validate = false, seeds: 42,47,49
-#          Started with model from this run of CNN_smallpicsFalse/weights.465.hdf5
+# History: used Dr. Blum file to create
+
+import soundfile as sf
 import numpy as np
 import pandas as pd
 import os
 import random
-from PIL import Image
-from skimage.transform import resize
-from random import shuffle,seed,randint
+
+from random import shuffle, seed, choice, randint
 from tensorflow import set_random_seed
 from keras.applications import imagenet_utils,densenet,inception_resnet_v2,resnet50,inception_v3,mobilenet
 from keras.models import Sequential
@@ -26,62 +26,52 @@ from keras import activations
 import sys
 
 if not (2 <= len(sys.argv) <= 3):
-	print("Usage: python",sys.argv[0],"MODEL VERSION [STARTING_MODEL]")
-	sys.exit(-1)
+    print("Usage: python",sys.argv[0],"MODEL VERSION [STARTING_MODEL]")
+    sys.exit(-1)
 
 MODELS = {
-	'densenet121':{
-		'size':224,
-		'preprocessor':densenet.preprocess_input,
-	},
-	'densenet169':{
-		'size':224,
-		'preprocessor':densenet.preprocess_input,
-	},
-	'densenet201':{
-		'size':224,
-		'preprocessor':densenet.preprocess_input,
-	},
-	'inceptionresnet':{
-		'size':299,
-		'preprocessor':inception_resnet_v2.preprocess_input,
-	},
-	'inception':{
-		'size':299,
-		'preprocessor':inception_v3.preprocess_input,
-	},
-	'mobilenet':{
-		'size':224,
-		'preprocessor':mobilenet.preprocess_input,
-	},
-	'resnet':{
-		'size':224,
-		'preprocessor':resnet50.preprocess_input,
-	},
+    'densenet121':{
+        'size':224,
+        'preprocessor':densenet.preprocess_input,
+    },
+    'densenet169':{
+        'size':224,
+        'preprocessor':densenet.preprocess_input,
+    },
+    'densenet201':{
+        'size':224,
+        'preprocessor':densenet.preprocess_input,
+    },
+    'inceptionresnet':{
+        'size':299,
+        'preprocessor':inception_resnet_v2.preprocess_input,
+    },
+    'inception':{
+        'size':299,
+        'preprocessor':inception_v3.preprocess_input,
+    },
+    'mobilenet':{
+        'size':224,
+        'preprocessor':mobilenet.preprocess_input,
+    },
+    'resnet':{
+        'size':224,
+        'preprocessor':resnet50.preprocess_input,
+    },
 }
-#MODEL = sys.argv[1]
-#if MODEL not in MODELS.keys():
-#	print("Bad model argument:",MODEL)
-#	sys.exit(-1)
 
-#Either need to >>>>manually split training set into training and validation<<<<
-#  OR need to make txt files of the image names (this will be the validation set)
-#VALID_SPLIT = int(sys.argv[2])
-#if VALID_SPLIT not in range(3):
-#    print("Bad model argument:", MODEL)
-#    sys.exit(-1)
 
 
 VERSION = sys.argv[1]
 
 SCRIPT_NAME = "music_v" + VERSION
 if os.path.exists(SCRIPT_NAME + "/"):
-	print("Directory for saved models already exists:",SCRIPT_NAME)
-	sys.exit(-1)
+    print("Directory for saved models already exists:",SCRIPT_NAME)
+    sys.exit(-1)
 
 STARTING_MODEL = ""
-if len(sys.argv) == 2:
-	STARTING_MODEL = sys.argv[3]
+#if len(sys.argv) == 2:
+#    STARTING_MODEL = sys.argv[3]
 
 #PATH = "your/path/to/directory_with_input/
 #PATH = "/media/tdh5188/easystore/convnet_input" # path to training files
@@ -105,79 +95,56 @@ set_random_seed(SEEDS[2])
 
 # Any results you write to the current directory are saved as output.
 list_paths = []
-for subdir,dirs,files in os.walk(PATH + "/input"):
-	for file in files:
-		filepath = subdir + "/" + file
-		list_paths.append(filepath)
+for subdir,dirs,files in os.walk("E:\\MusicNetworks\\input"):
+    for file in files:
+        filepath = subdir + "\\" + file
+        #print("function filepath: " + filepath)
+        list_paths.append(filepath)
 
 
 ######  CHANGE THESE TO ROCK & CLASSICAL
 list_classes = [
-	'Rock',
-	'Classical'
+    'Rock',
+    'Classical'
 ]
-#list_classes = ['Sony-NEX-7',
-#				'Motorola-X',
-#				'HTC-1-M7',
-#				'Samsung-Galaxy-Note3',
-#				'Motorola-Droid-Maxx',
-#				'iPhone-4s',
-#				'iPhone-6',
-#				'LG-Nexus-5x',
-#				'Samsung-Galaxy-S4',
-# 				'Motorola-Nexus-6']
+
 
 dict_classes = {
-	'Rock':0,
-	'Classical':1
+    'Rock':0,
+    'Classical':1
 }
 
-#dict_classes = {
-#	'Sony-NEX-7':0,
-#	'Motorola-X':1,
-#	'HTC-1-M7':2,
-#	'Samsung-Galaxy-Note3':3,
-#	'Motorola-Droid-Maxx':4,
-#	'iPhone-4s':5,
-#	'iPhone-6':6,
-#	'LG-Nexus-5x':7,
-#	'Samsung-Galaxy-S4':8,
-#	'Motorola-Nexus-6':9
-#}
 
 
 def get_class_from_path(filepath):
-	return os.path.dirname(filepath).split(os.sep)[-1]
+    #print("function filepath: " + filepath + " label " + os.path.dirname(filepath).split(os.sep)[-1])
+    return os.path.dirname(filepath).split(os.sep)[-1]
 
 
 def label_transform(label):
-	return dict_classes[label]
+    return dict_classes[label]
 
 
 ##############################################################################################
-'''
-
-#Take a potentially random patch of image
-preprocess_input = MODELS[MODEL]['preprocessor']
 
 
-def read_and_crop(filepath,left = None,top = None,random = True,margin = 0,width = 112,height = 112):
-	im_array = np.array(Image.open((filepath)),dtype = "uint8")
-	pil_im = Image.fromarray(im_array)
-	if left is None:
-		if random:
-			left = randint(margin,pil_im.size[0] - margin - width + 1)
-		else:
-			left = (pil_im.size[0] - width) // 2
-	if top is None:
-		if random:
-			top = randint(margin,pil_im.size[1] - margin - height + 1)
-		else:
-			top = (pil_im.size[1] - height) // 2
-	new_array = np.array(pil_im.crop((left,top,left + width,top + height)))
-	return preprocess_input(new_array / 1.0)
+#Take a potentially random patch of song, modified by tdr5143
+def read_and_crop(filepath,random = True,margin = 0,width = 10000):
+    #print("filepath: "+filepath)
+    song = sf.read(filepath)
+    
+    rightChannel = song[0].transpose()[0]
+    
+    startingPoint = randint(0,len(rightChannel)-width)
+    
+    fragment = rightChannel[startingPoint:startingPoint+width]
+    
+    for i in range(0,len(fragment)):
+        fragment[i] = (fragment[i]+1)/2
 
-'''
+    return fragment
+
+
 ##############################################################################################
 
 
@@ -219,188 +186,120 @@ def pretty_print_path():
 
 #pretty_print_path()
 
-'''
-# list_train = [filepath for filepath in list_paths if "train/" in filepath]
-# train_ex1 = [[],[],[],[],[],[],[],[],[],[]]
-# train_ex2 = [[],[],[],[],[],[],[],[],[],[]]
-# for filepath in list_train:
-# 	label = label_transform(get_class_from_path(filepath))
-# 	train_ex1[label].append(filepath)
-
-# for split in range(3):
-# 	if split != VALID_SPLIT:
-# 		for line in open("./level2_split" + str(split),'r'):
-# 			filepath = PATH + "/" + line.strip()
-# 			label = label_transform(get_class_from_path(filepath))
-# 			train_ex2[label].append(filepath)
-
-# list_valid = [PATH + "/" + line.strip() for line in open("./level2_split" + str(VALID_SPLIT),'r')]
-# valid_ex = [[],[],[],[],[],[],[],[],[],[]]
-
-# for filepath in list_valid:
-# 	label = label_transform(get_class_from_path(filepath))
-# 	valid_ex[label].append(filepath)
-
-# partition = {'train':[train_ex1,train_ex2,train_ex2],'validation':[valid_ex]}
-'''
-
-
-
-
-
 
 ##########################################################################################################################
 
 
-## Custom Dataflow Generator
-
-
-Code adapted from blog at: https://stanford.edu/~shervine/blog/keras-how-to-generate-data-on-the-fly.html
-
-
-
-USE KERAS DATAGENERATOR (ImageDataGenerator) ##
-
-from random import randint
+## Custom Dataflow Generator, rewritten by tdr5143
 
 
 class DataGenerator(object):
-	def __init__(self,dim_x,dim_y,dim_z = 3,batch_size = 40,margin = 100,random_location = True,batches_per_epoch =
-	100,
-				 nclass = 10):
-		self.dim_x = dim_x
-		self.dim_y = dim_y
-		self.dim_z = dim_z
-		self.batch_size = batch_size
-		self.batches_per_epoch = batches_per_epoch
-		self.random_location = random_location
-		self.margin = margin
-		self.nclass = nclass
+    def __init__(self,dim_x,batch_size,batches_per_epoch, margin = 100,random_location = True,
+                 nclass = 2):
+        self.dim_x = dim_x
 
-	def generate(self,list_IDs):
-		# Generates batches of samples
-		# Infinite loop
-		while 1:
-			# Generate batches
-			imax = self.batches_per_epoch
-			for i in range(imax):
-				# Generate data
-				X,y = self.__data_generation(list_IDs)
+        self.batch_size = batch_size
+        self.batches_per_epoch = batches_per_epoch
+        self.random_location = random_location
+        self.margin = margin
+        self.nclass = nclass
 
-				yield X,y
+    def generate(self,list_IDs):
+        # Generates batches of samples
+        # Infinite loop
+        while 1:
+            print("Generating batch");
+            # Generate batches
+            imax = self.batches_per_epoch
+            for i in range(imax):
+                # Generate data
+                X,y = self.__data_generation(list_IDs)
 
-	def __data_generation(self,list_IDs):
-		#Generates data of batch_size samples' # X : (n_samples, v_size, v_size, v_size, n_channels)
-		# Initialization
-		X = np.empty((self.batch_size,self.dim_x,self.dim_y,self.dim_z))
-		y = np.empty((self.batch_size),dtype = int)
+                yield X,y
 
-		for i in range(self.batch_size):
-			#sector = randint(0,len(list_IDs) - 1)
+    def __data_generation(self,list_IDs):
+      
+        X = np.empty((self.batch_size,self.dim_x))
+        y = np.empty((self.batch_size),dtype = int)
+
+        for i in range(self.batch_size):
+            
+            
                         #choose random label from file_path
-                        label = randint(0,self.nclass - 1)
-                        #choose random index in the following airray : partition[training][label]
-			pic_ndx = randint(0,len(list_IDs[sector][label]) - 1)
+            label = randint(0,self.nclass - 1)
+            #print("label: " + str(label))
+            
+            #choose random item from within that label
+            sector = randint(0,len(list_IDs[label]) - 1)
+            #print("sector: " + str(sector))
+
+       
+            #print("path: " + list_IDs[label][sector])
                         #read_and_crop gets image and then copies everything (that the ':' in the array) into a sample index ('i')
-			X[i,:,:,:] = read_and_crop(list_IDs[sector][label][pic_ndx],
+            X[i] = read_and_crop(list_IDs[label][sector], #issue here?
                                                    margin = self.margin,
                                                    random = self.random_location,
-						   height = self.dim_y,
                                                    width  = self.dim_x)
-			y[i] = label
+            y[i] = label
 
-		return X,sparsify(y)
+        return X,sparsify(y)
 
-	## dont need this (used by data generator)
+    ## dont need this (used by data generator)
 
 
 def sparsify(y):
-	# Returns labels in binary NumPy array'
-	n_classes = 10
-	return np.array([[1 if y[i] == j else 0 for j in range(n_classes)]
-					 for i in range(y.shape[0])])
+    # Returns labels in binary NumPy array'
+    n_classes = 2
+    return np.array([[1 if y[i] == j else 0 for j in range(n_classes)]
+                     for i in range(y.shape[0])])
 
 
 #################################################################################################################################################
 
-Gotta do this next
-vvvvvvvvvvvvvvvvvvvvvvvvv
 
-'''
 # ## Train the CNN
-#
-# Code adapted from: https://github.com/keras-team/keras/blob/master/examples/cifar10_cnn.py
-
-# In[10]:
 
 from keras.callbacks import ModelCheckpoint,LearningRateScheduler,EarlyStopping,ReduceLROnPlateau,TensorBoard
 from keras import optimizers,losses,activations,models
 from keras.layers import Convolution2D,Dense,Input,Flatten,Dropout,MaxPooling2D,BatchNormalization,GlobalMaxPool2D,Concatenate
 from keras.models import Model
 
-nclass = 10
+nclass = 2
 
 
 def get_model():
-	num_classes = 10
+    num_classes = 2
 
-	input_shape = (MODELS[MODEL]['size'],MODELS[MODEL]['size'],3)
-	#preprocess = imagenet_utils.preprocess_input
+    input_shape = (10000,) #1D vector instead of picture, perhaps size of 200,000?
+    #preprocess = imagenet_utils.preprocess_input
 
-	input_image = Input(shape = input_shape)
+    input_image = Input(shape = input_shape)
 
-	if MODEL == "densenet121":
-		base_model = densenet.DenseNet121(include_top = False,pooling = None,weights = 'imagenet',
-										  input_shape = input_shape)
-	elif MODEL == "densenet169":
-		base_model = densenet.DenseNet169(include_top = False,pooling = None,weights = 'imagenet',
-										  input_shape = input_shape)
-	elif MODEL == "densenet201":
-		base_model = densenet.DenseNet201(include_top = False,pooling = None,weights = 'imagenet',
-										  input_shape = input_shape)
-	elif MODEL == "inceptionresnet":
-		base_model = inception_resnet_v2.InceptionResNetV2(include_top = False,pooling = None,weights = 'imagenet',
-														   input_shape = input_shape)
-	elif MODEL == "inception":
-		base_model = inception_v3.InceptionV3(include_top = False,pooling = None,weights = 'imagenet',
-											  input_shape = input_shape)
-	elif MODEL == "mobilenet":
-		base_model = mobilenet.MobileNet(include_top = False,pooling = None,weights = 'imagenet',
-										 input_shape = input_shape)
-	elif MODEL == "resnet":
-		base_model = resnet50.ResNet50(include_top = False,pooling = None,weights = 'imagenet',
-									   input_shape = input_shape)
-	#elif MODEL == "vgg16":
-	#	base_model = vgg16.VGG16(include_top = False,pooling = None,weights = 'imagenet',input_shape = input_shape)
-	#elif MODEL == "vgg19":
-	#	base_model = vgg19.VGG19(include_top = False,pooling = None,weights = 'imagenet',input_shape = input_shape)
-	else:
-		print("Bad model type:",MODEL)
-		sys.exit(-1)
+    
 
-	x = input_image
-	x = base_model(x) #resent or densenet or whatever
-	x = Reshape((-1,))(x)
-	#x = Dropout(rate=?)(x)   ## should use this
-	x = Dense(512,activation = 'relu',name = 'fc1')(x)
-	x = Dropout(0.3,name = 'dropout_fc1')(x)
-	x = Dense(128,activation = 'relu',name = 'fc2')(x)
-	x = Dropout(0.3,name = 'dropout_fc2')(x)
-	prediction = Dense(nclass,activation = "softmax",name = "predictions")(x)
+    x = input_image
 
-	# this is the model we will train
-	my_model = Model(inputs = (input_image),outputs = prediction)
+    x = Reshape((-1,))(x) #what does this do?
+    
+    x = Dense(16,activation = 'relu',name = 'fc1')(x)
+    #x = Dropout(0.3,name = 'dropout_fc1')(x)
+    x = Dense(16,activation = 'relu',name = 'fc2')(x)
+    #x = Dropout(0.3,name = 'dropout_fc2')(x)
+    prediction = Dense(nclass,activation = "sigmoid",name = "predictions")(x)
 
-	# first: train only the top layers
-	#for layer in base_model.layers:
-	#    layer.trainable = False
+    # this is the model we will train
+    my_model = Model(inputs = (input_image),outputs = prediction)
 
-	# compile the model (should be done *after* setting layers to non-trainable)
-	opt = optimizers.Adam(lr = 1e-4)
-	my_model.compile(optimizer = opt,loss = 'categorical_crossentropy',metrics = ['acc'])
+    # first: train only the top layers
+    #for layer in base_model.layers:
+    #    layer.trainable = False
 
-	my_model.summary()
-	return my_model
+    # compile the model (should be done *after* setting layers to non-trainable)
+    opt = "rmsprop"
+    my_model.compile(optimizer = opt,loss = 'binary_crossentropy',metrics = ['acc'])
+
+    my_model.summary()
+    return my_model
 
 
 ########################################################################################################
@@ -410,52 +309,47 @@ print("Getting model")
 model = get_model()
 print("done")
 
-if not os.path.exists(SCRIPT_NAME + "/"):
-	os.makedirs(SCRIPT_NAME + "/")
-file_path = SCRIPT_NAME + "/weights.{epoch:04d}.hdf5"
+if not os.path.exists(SCRIPT_NAME + "\\"):
+    os.makedirs(SCRIPT_NAME + "\\")
+file_path = SCRIPT_NAME + "\\weights.{epoch:04d}.hdf5"
 
 callbacks_list = [ModelCheckpoint(file_path,monitor = 'val_acc',verbose = 1)]
 
 # Might need to change this to fit keras data generator
 # Parameters
 paramsTrain = {
-	'dim_x':MODELS[MODEL]['size'],
-	'dim_y':MODELS[MODEL]['size'],
-	'dim_z':3,
-	'batch_size':32,
-	'batches_per_epoch':150,
-	'nclass':10,
-	'margin':100,
-	'random_location':True
+    'dim_x':10000,
+
+    'batch_size':8,
+    'batches_per_epoch':150,
+    'nclass':2,
+    'margin':100,
+    'random_location':True
 }
 paramsValid = {
-	'dim_x':MODELS[MODEL]['size'],
-	'dim_y':MODELS[MODEL]['size'],
-	'dim_z':3,
-	'batch_size':32,
-	'batches_per_epoch':80,
-	'nclass':10,
-	'margin':100,
-	'random_location':True
+    'dim_x':10000,
+
+    'batch_size':8,
+    'batches_per_epoch':80,
+    'nclass':2,
+    'margin':100,
+    'random_location':True
 }
 
 print("starting training")
 if STARTING_MODEL != "":
-	model.load_weights(STARTING_MODEL)
+    model.load_weights(STARTING_MODEL)
+    
+training_generator = DataGenerator(**paramsTrain).generate(partition['train'])
+validation_generator = DataGenerator(**paramsValid).generate(partition['valid'])
 
-## Need to change to match ImageDataGenerator from keras
-# Generators
-#training_generator = ImageDataGenerator()
-#training_generator = DataGenerator(**paramsTrain).generate(partition['train'])
-#validation_generator = DataGenerator(**paramsValid).generate(partition['validation'])
-
+print("BEGIN")
 # Train model on dataset
-#history = model.fit_generator(generator = training_generator,
-#							  steps_per_epoch = paramsTrain['batches_per_epoch'],
-#							  validation_data = validation_generator,
-#							  validation_steps = paramsValid['batches_per_epoch'],
-#							  epochs = 1000,
-#							  verbose = 2,callbacks = callbacks_list)
+history = model.fit_generator(generator = training_generator,
+                              steps_per_epoch = paramsTrain['batches_per_epoch'],
+                              validation_data = validation_generator,
+                              validation_steps = paramsValid['batches_per_epoch'],
+                              epochs = 10,
+                              verbose = 2,callbacks = callbacks_list)
 
-#print(history)
-'''
+print(history)
