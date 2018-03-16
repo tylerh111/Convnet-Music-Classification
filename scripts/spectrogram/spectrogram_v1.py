@@ -64,13 +64,6 @@ if MODEL not in MODELS.keys():
 	print("Bad model argument:",MODEL)
 	sys.exit(-1)
 
-#Either need to >>>>manually split training set into training and validation<<<<
-#  OR need to make txt files of the image names (this will be the validation set)
-#VALID_SPLIT = int(sys.argv[2])
-#if VALID_SPLIT not in range(3):
-#    print("Bad model argument:", MODEL)
-#    sys.exit(-1)
-
 
 VERSION = sys.argv[2]
 
