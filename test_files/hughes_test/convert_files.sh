@@ -25,7 +25,7 @@ done
 set -- "${POSITIONAL[@]}" # restore positional parameters
 
 #mkdir .../input_png/
-$(/bin/mkdir "$PATH/$SPECT_PATH")
+#$(/bin/mkdir "$PATH/$SPECT_PATH")
 
 #for each class name
 for dir in $(/bin/ls "$PATH/$AUDIO_PATH/") ;
@@ -33,10 +33,10 @@ do
     printf "Directory: $dir\n"
 
     #mkdir .../input_png/Classical/
-    /bin/mkdir "$PATH/$SPECT_PATH/$dir"
+    #/bin/mkdir "$PATH/$SPECT_PATH/$dir"
 
     #clean the directory
-    #removes spaces
+    #removes spaces from audiofile/....
     if $CLEAN ; then
         printf "Cleaning directory\n"
         find -name "* *" -type f | rename 's/ /_/g'
@@ -48,6 +48,7 @@ do
     do
         printf "\tCreating spectrogram of $fn\n"
         no_ext=${fn%.flac} #drop extension for png
+	# in: .../convnet_input/audiofiles/Classical/~~~.flac out: .../convnet_input/input_png/Classical/~~~.png
         /usr/bin/sox "$PATH/$AUDIO_PATH/$dir/$fn" -n spectrogram -r -a -o "$PATH/$SPECT_PATH/$dir/$no_ext.png"
     done;
 
@@ -55,7 +56,7 @@ do
 done;
 
 #convert png -> flac
-#$(/opt/anaconda3/bin/python3.6 create_jpg.py)
+/opt/anaconda3/bin/python3.6 create_jpg.py
 
 #delete pngs
 #$(/bin/rm -rf "$PATH/$SPECT_PATH")

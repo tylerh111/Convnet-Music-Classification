@@ -7,8 +7,11 @@ import random
 from PIL import Image
 from skimage.transform import resize
 from random import shuffle,seed,randint
+import time
+import shutil
+import torch
 
-if not (1 <= len(sys.argv) <= 1):
+if not (1 <= len(sys.argv) <= 2):
 	print("Usage: python",sys.argv[0],"VERSION") # [STARTING_MODEL]")
 	sys.exit(-1)
 
@@ -20,11 +23,11 @@ if os.path.exists(SCRIPT_NAME + "/"):
 	print("Directory for saved models already exists:",SCRIPT_NAME)
 	sys.exit(-1)
 
-#STARTING_MODEL = ""
-#if len(sys.argv) == 4:
-#	STARTING_MODEL = sys.argv[3]
+STARTING_MODEL = ""
+if len(sys.argv) == 2:
+	STARTING_MODEL = sys.argv[2]
 
-PATH = "/media/tdh5188/easystore/data/convnet_input" # path to training files
+PATH = "/media/tdh5188/easystore/data/convnet_input/input/" # path to training files
 #DIR_SEP = "/" # "/" for unix, "\\" for windows
 #SEEDS = [randint(0,10000),randint(0,10000),randint(0,10000)]
 SEEDS = [0,0,0]
@@ -42,126 +45,55 @@ np.random.seed(SEEDS[1])
 
 
 
-#######################################################################
+# other preset params
+start_epoch = 0
+print_freq = 100
 
-## dataset creation
-
-
-#load_images reads in a picture and crops the image to specification
-def load_images(filepath): #, left = None,top = None,random = True,margin = 0,width = 112,height = 112):
-	#im_array = np.array(Image.open(filepath),dtype = "uint8")
-	#pil_im = Image.fromarray(im_array)
-
-	img = Image.open(filepath)
-	#arr = np.array(img, dtype = "uint8")
-
-	if left is None:
-		if random:
-			left = randint(margin,img.size[0] - margin - width + 1)
-		else:
-			left = (img.size[0] - width) // 2
-	if top is None:
-		if random:
-			top = randint(margin,img.size[1] - margin - height + 1)
-		else:
-			top = (img.size[1] - height) // 2
-	new_array = np.array(img.crop((left,top,left + width,top + height)))
-	return new_array / 255
-
-
-def transform_image(img, left=None, top=None, random=True, margin=0, width=112, height=112):
-	if left is None:
-		if random:
-			left = randint(margin,img.size[0] - margin - width + 1)
-		else:
-			left = (img.size[0] - width) // 2
-	if top is None:
-		if random:
-			top = randint(margin,img.size[1] - margin - height + 1)
-		else:
-			top = (img.size[1] - height) // 2
-	new_array = np.array(img.crop((left,top,left + width,top + height)))
-	return new_array / 255
-
-
-
-def load_sets(n_class):
-	list_paths = []
-	for subdir,dirs,files in os.walk(PATH + "/input"):
-		for file in files:
-			filepath = subdir + "/" + file
-			list_paths.append(filepath)
-
-	# Grab file list and labels
-
-	train_set = [[] for i in range(n_class)]
-	valid_set = [[] for i in range(n_class)]
-
-	for filepath in list_paths:
-		label = label_transform(get_class_from_path(filepath))
-		# randomly decide to add to training set or validation set
-		if random.uniform(0,1) >= 0.10:
-			train_set[label].append((filepath, label))
-		else:
-			valid_set[label].append((filepath, label))
-
-	return {'train':train_set,
-			'valid':valid_set}
-
-
-from torch.utils.data import Dataset,DataLoader
-import torchvision
-import torchvision.datasets as dsets
-import torchvision.transforms as transforms
-
-
-class DataGenerator(Dataset):
-
-	def __init__(self, root, loader, img_paths, transform = None, target_transform = None):
-		self.root = root
-		self.img_paths = img_paths
-		self.classes = list_classes
-		self.class_to_idx = dict_classes
-		self.transform = transform
-		self.target_transform = target_transform
-		self.loader = loader
-
-
-	def __getitem__(self,index):
-		path, target = self.img_paths[index]
-		img = self.loader(path)
-		if self.transform is not None:
-			img = self.transform(img)
-
-		if self.target_transform is not None:
-			img = self.target_transform
-
-		return img, target
-
-	def __len__(self):
-		return len(self.img_paths)
-
-
-
-
-######################################################################
-
-import matplotlib.pyplot as plt
-import numpy as np
-
-
-def imshow(img):
-	img = img / 2 + 0.5  #unnormalize
-	npimg = img.numpy()
-	plt.imshow(np.transpose(npimg,(1,2,0)))
 
 
 #######################################################################
 
+# hyper parameters, parameters, and knobs
+
+# class list and dictionary
+list_classes = [
+	'Rock',
+	'Classical'
+]
+
+dict_classes = {
+	'Rock':0,
+	'Classical':1
+}
+
+n_class = len(list_classes)
+
+# hyper params
+n_epochs = 3
+
+batch_size = 16
+#batch_per_epoch = 80
+
+learning_rate = 0.001
+momentum = 0.9
+weight_decay = 0
+dampening = 0
+#nesterov = False
+
+
+#params
+dim_x = 224
+dim_y = 224
+dim_z = 3
+margin = 100
+#random_location = True
+
+
+
+#######################################################################
 
 ## model creation
 
-from torch.autograd import Variable
 import torch.nn as nn
 import torch.nn.functional as F
 
@@ -190,21 +122,9 @@ class Model(nn.Module):
 
 model = Model()
 
-#######################################################################
+######################################################################
 
-## Class list and dictionary
-list_classes = [
-	'Rock',
-	'Classical'
-]
-
-dict_classes = {
-	'Rock':0,
-	'Classical':1
-}
-
-n_class = len(list_classes)
-
+# helpful functions
 
 def get_class_from_path(filepath):
 	return os.path.dirname(filepath).split(os.sep)[-1]
@@ -214,20 +134,286 @@ def label_transform(label):
 	return dict_classes[label]
 
 
-# hyper params
-n_epochs = 3
+# show PIL image
+import matplotlib.pyplot as plt
+import numpy as np
 
-batch_size = 16
-batch_per_epoch = 80
+def imshow(img):
+	img = img / 2 + 0.5  #unnormalize
+	npimg = img.numpy()
+	plt.imshow(np.transpose(npimg,(1,2,0)))
 
-learning_rate = 0.001
 
-partition = load_sets(n_class = n_class)
+######################################################################
 
-train_set = DataGenerator(root = PATH,
-						  loader = load_images,
-						  img_paths = partition['train'])
+# loss and optimizer
+from torch.nn import CrossEntropyLoss
+from torch.optim import SGD
 
-valid_set = DataGenerator(root = PATH,
-						  loader = load_images,
-						  img_paths = partition['valid'])
+criterion = CrossEntropyLoss()
+optimizer = SGD(model.parameters(),
+				lr = learning_rate,
+				momentum = momentum,
+				weight_decay = weight_decay,
+				dampening = dampening)
+
+
+
+# optionally resume from a checkpoint
+if STARTING_MODEL is not "":
+	if os.path.isfile(STARTING_MODEL):
+		print("=> loading checkpoint '{}'".format(STARTING_MODEL))
+		checkpoint = torch.load(STARTING_MODEL)
+		start_epoch = checkpoint['epoch']
+		#best_prec1 = checkpoint['best_prec1']
+		model.load_state_dict(checkpoint['state_dict'])
+		optimizer.load_state_dict(checkpoint['optimizer'])
+		print("=> loaded checkpoint '{}' (epoch {})".format(STARTING_MODEL, checkpoint['epoch']))
+	else:
+		print("=> no checkpoint found at '{}'".format(STARTING_MODEL))
+
+
+######################################################################
+
+## dataset creation
+
+from torch.utils.data import Dataset,DataLoader
+import torchvision
+import torchvision.datasets as dsets
+import torchvision.transforms as transforms
+
+
+# #load_images reads in a picture and crops the image to specification
+# def load_images(filepath):
+# 	return Image.open(filepath)
+
+
+train_dataset = dsets.ImageFolder(root = PATH + 'train/',
+								  transform = transforms.Compose([
+									  transforms.RandomCrop((dim_x,dim_y),margin),
+									  #transforms.RandomResizedCrop((dim_x,dim_y)),
+									  #transforms.RandomHorizontalFlip(),
+
+									  transforms.ToTensor(),
+									  #transforms.Normalize((.,.,.),(.,.,.))
+								  ]))
+
+valid_dataset = dsets.ImageFolder(root = PATH + 'valid/',
+								  transform = transforms.Compose([
+									  transforms.RandomCrop((dim_x,dim_y),margin),
+									  #transforms.RandomResizedCrop((dim_x,dim_y)),
+									  #transforms.RandomHorizontalFlip(),
+
+									  transforms.ToTensor(),
+									  #transforms.Normalize((.,.,.),(.,.,.))
+								  ]))
+
+# creating data loaders
+
+train_loader = DataLoader(dataset = train_dataset,
+						  batch_size = batch_size,
+						  shuffle = True)
+
+valid_loader = DataLoader(dataset = valid_dataset,
+						  batch_size = batch_size,
+						  shuffle = False)
+
+
+######################################################################
+
+
+
+def train(train_loader,model,criterion,optimizer,epoch):
+	batch_time = AverageMeter()
+	data_time = AverageMeter()
+	losses = AverageMeter()
+	top1 = AverageMeter()
+	top5 = AverageMeter()
+
+	# switch to train mode
+	model.train()
+
+	end = time.time()
+	for i,(input,target) in enumerate(train_loader):
+		# measure data loading time
+		data_time.update(time.time() - end)
+
+		#target = target.cuda(async = True)
+		input_var = torch.autograd.Variable(input)
+		target_var = torch.autograd.Variable(target)
+
+		# compute output
+		output = model(input_var)
+		loss = criterion(output,target_var)
+
+		# measure accuracy and record loss
+		prec1,prec5 = accuracy(output.data,target,topk = (1,5))
+		losses.update(loss.data[0],input.size(0))
+		top1.update(prec1[0],input.size(0))
+		top5.update(prec5[0],input.size(0))
+
+		# compute gradient and do SGD step
+		optimizer.zero_grad()
+		loss.backward()
+		optimizer.step()
+
+		# measure elapsed time
+		batch_time.update(time.time() - end)
+		end = time.time()
+
+		if i % print_freq == 0:
+			print('Epoch: [{0}][{1}/{2}]\t'
+				  'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
+				  'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
+				  'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
+				  'Prec@1 {top1.val:.3f} ({top1.avg:.3f})\t'
+				  'Prec@5 {top5.val:.3f} ({top5.avg:.3f})'.format(
+				epoch,i,len(train_loader),batch_time = batch_time,
+				data_time = data_time,loss = losses,top1 = top1,top5 = top5))
+
+
+def validate(valid_loader,model,criterion):
+	batch_time = AverageMeter()
+	losses = AverageMeter()
+	top1 = AverageMeter()
+	top5 = AverageMeter()
+
+	# switch to evaluate mode
+	model.eval()
+
+	end = time.time()
+	for i,(input,target) in enumerate(valid_loader):
+		#target = target.cuda(async = True)
+		input_var = torch.autograd.Variable(input,volatile = True)
+		target_var = torch.autograd.Variable(target,volatile = True)
+
+		# compute output
+		output = model(input_var)
+		loss = criterion(output,target_var)
+
+		# measure accuracy and record loss
+		prec1,prec5 = accuracy(output.data,target,topk = (1,5))
+		losses.update(loss.data[0],input.size(0))
+		top1.update(prec1[0],input.size(0))
+		top5.update(prec5[0],input.size(0))
+
+		# measure elapsed time
+		batch_time.update(time.time() - end)
+		end = time.time()
+
+		if i % print_freq == 0:
+			print('Test: [{0}/{1}]\t'
+				  'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
+				  'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
+				  'Prec@1 {top1.val:.3f} ({top1.avg:.3f})\t'
+				  'Prec@5 {top5.val:.3f} ({top5.avg:.3f})'.format(
+				i,len(valid_loader),batch_time = batch_time,loss = losses,
+				top1 = top1,top5 = top5))
+
+	print(' * Prec@1 {top1.avg:.3f} Prec@5 {top5.avg:.3f}'
+		  .format(top1 = top1,top5 = top5))
+
+	return top1.avg
+
+
+def save_checkpoint(state,is_best,filename = 'checkpoint.pth.tar'):
+	torch.save(state,filename)
+	if is_best:
+		shutil.copyfile(filename,'model_best.pth.tar')
+
+
+class AverageMeter(object):
+	"""Computes and stores the average and current value"""
+
+	def __init__(self):
+		self.reset()
+
+	def reset(self):
+		self.val = 0
+		self.avg = 0
+		self.sum = 0
+		self.count = 0
+
+	def update(self,val,n = 1):
+		self.val = val
+		self.sum += val * n
+		self.count += n
+		self.avg = self.sum / self.count
+
+
+def adjust_learning_rate(optimizer,epoch):
+	"""Sets the learning rate to the initial LR decayed by 10 every 30 epochs"""
+	lr = learning_rate * (0.1 ** (epoch // 30))
+	for param_group in optimizer.param_groups:
+		param_group['lr'] = lr
+
+
+def accuracy(output,target,topk = (1,)):
+	"""Computes the precision@k for the specified values of k"""
+	maxk = max(topk)
+	batch_size = target.size(0)
+
+	_,pred = output.topk(maxk,1,True,True)
+	pred = pred.t()
+	correct = pred.eq(target.view(1,-1).expand_as(pred))
+
+	res = []
+	for k in topk:
+		correct_k = correct[:k].view(-1).float().sum(0,keepdim = True)
+		res.append(correct_k.mul_(100.0 / batch_size))
+	return res
+
+
+
+
+
+
+
+
+
+
+
+######################################################################
+
+# training
+from torch.autograd import Variable
+
+
+for epoch in range(start_epoch, start_epoch + n_epochs):
+	adjust_learning_rate(optimizer,epoch)
+
+	# train for one epoch
+	train(train_loader,model,criterion,optimizer,epoch)
+
+	# evaluate on validation set
+	prec1 = validate(valid_loader,model,criterion)
+
+	# remember best prec@1 and save checkpoint
+	is_best = prec1 > best_prec1
+	best_prec1 = max(prec1,best_prec1)
+	save_checkpoint({
+		'epoch':epoch + 1,
+		#'arch':args.arch,
+		'state_dict':model.state_dict(),
+		'best_prec1':best_prec1,
+		'optimizer':optimizer.state_dict(),
+	},is_best)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
