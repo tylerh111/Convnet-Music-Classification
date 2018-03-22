@@ -103,6 +103,8 @@ dict_classes = {
 	'Classical':1
 }
 
+N_CLASSES = len(list_classes)
+
 
 def get_class_from_path(filepath):
 	return os.path.dirname(filepath).split(os.sep)[-1]
@@ -249,7 +251,7 @@ class DataGenerator(object):
 
 def sparsify(y):
 	# Returns labels in binary NumPy array'
-	n_classes = 10
+	n_classes = N_CLASSES
 	return np.array([[1 if y[i] == j else 0 for j in range(n_classes)]
 					 for i in range(y.shape[0])])
 
@@ -275,7 +277,7 @@ nclass = 2
 
 
 def get_model():
-	num_classes = 10
+	num_classes = N_CLASSES
 
 	input_shape = (MODELS[MODEL]['size'],MODELS[MODEL]['size'],3)
 	#preprocess = imagenet_utils.preprocess_input
@@ -356,7 +358,7 @@ paramsTrain = {
 	    'dim_x':MODELS[MODEL]['size'],
 	    'dim_y':MODELS[MODEL]['size'],
 	    'dim_z':3,
-	    'batch_size':32,
+	    'batch_size':16,
 	    'batches_per_epoch':150,
 	    'nclass':2,
 	    'margin':100,
@@ -366,7 +368,7 @@ paramsValid = {
 	    'dim_x':MODELS[MODEL]['size'],
 	    'dim_y':MODELS[MODEL]['size'],
 	    'dim_z':3,
-	    'batch_size':32,
+	    'batch_size':16,
 	    'batches_per_epoch':80,
 	    'nclass':2,
 	    'margin':100,

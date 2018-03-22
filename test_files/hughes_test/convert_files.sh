@@ -3,7 +3,7 @@
 # example
 # $ /usr/bin/sox "../audiofiles/01 - Symphonic Variations.flac" -n spectrogram -o "symphonic_variations.png"
 
-PATH="/media/tdh5188/easystore/convnet_input"
+PATH="/media/tdh5188/easystore/data/convnet_input"
 AUDIO_PATH="audiofiles"
 SPECT_PATH="input_png"
 CLEAN=false
@@ -24,25 +24,26 @@ do
 done
 set -- "${POSITIONAL[@]}" # restore positional parameters
 
+#mkdir .../input_png/
+$(/bin/mkdir "$PATH/$SPECT_PATH")
 
-$(/bin/mkdir "$PATH/$AUDIO_PATH")
-
-# for each class name
+#for each class name
 for dir in $(/bin/ls "$PATH/$AUDIO_PATH/") ;
 do
     printf "Directory: $dir\n"
 
-    /bin/mkdir "$PATH/input/$dir"
+    #mkdir .../input_png/Classical/
+    /bin/mkdir "$PATH/$SPECT_PATH/$dir"
 
-    # clean the directory
-    # removes spaces
+    #clean the directory
+    #removes spaces
     if $CLEAN ; then
         printf "Cleaning directory\n"
         find -name "* *" -type f | rename 's/ /_/g'
     fi
 
 
-    # convert flac -> png (spectrogram)
+    #convert flac -> png (spectrogram)
     for fn in $(/bin/ls "$PATH/$AUDIO_PATH/$dir/") ;
     do
         printf "\tCreating spectrogram of $fn\n"
@@ -54,10 +55,10 @@ do
 done;
 
 #convert png -> flac
-$(/opt/anaconda3/bin/python3.6 create_jpg.py)
+#$(/opt/anaconda3/bin/python3.6 create_jpg.py)
 
-
-$(/bin/rm -rf "$PATH/$SPECT_PATH")
+#delete pngs
+#$(/bin/rm -rf "$PATH/$SPECT_PATH")
 
 
 
