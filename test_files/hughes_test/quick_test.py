@@ -44,9 +44,47 @@ def even_quicker_test():
     my_life('hello')
     
     
+#even_quicker_test()
 
 
 
-even_quicker_test()
+
+
+
+def pil_file_loading():
+    
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
